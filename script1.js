@@ -19,6 +19,8 @@ const state = {
     lastVolume: 1,
     currentTrackMetadata: { title: null, artist: null, picture: null },
     appStartTime: Date.now(),
+    // Timer ID for cleanup (Issue 13)
+    sessionTimerId: null, 
     settings: {
         titleGlow: true,
         dynamicIsland: true,
@@ -36,7 +38,8 @@ const state = {
         customBackground: '', // data:url string
         backgroundBlur: 5, // 0 to 20
     },
-    googleApiReady: false,
+    // Google API state: 'ready' (API loaded), 'signedIn' (User signed in), 'failed' (API init failed)
+    googleApiReady: false, 
     googleDriveSignedIn: false,
     googleAuthToken: null,
     googleUserName: '',
@@ -112,6 +115,21 @@ document.addEventListener('DOMContentLoaded', () => {
     loadInitialData();
 });
 
+// --- Timer Cleanup (Issue 13) ---
+window.addEventListener('beforeunload', () => {
+    if (state.sessionTimerId) {
+        clearInterval(state.sessionTimerId);
+        state.sessionTimerId = null;
+        console.log("Session timer cleared.");
+    }
+    // Also ensures any current blob URL is revoked
+    if (typeof lastBlobUrl !== 'undefined' && lastBlobUrl) {
+         URL.revokeObjectURL(lastBlobUrl);
+    }
+});
+// --- End Timer Cleanup ---
+
+
 // --- Loads initial data and sets up the UI ---
 function loadInitialData() {
     applyPerformanceMode();
@@ -128,8 +146,8 @@ function loadInitialData() {
         dom.loadingOverlay.classList.add('hidden');
     }
 
-    // Starts the session timer
-    setInterval(() => {
+    // Starts the session timer (Issue 13)
+    state.sessionTimerId = setInterval(() => {
         const elapsed = Math.floor((Date.now() - state.appStartTime) / 1000);
         const m = Math.floor(elapsed / 60).toString().padStart(2, '0');
         const s = (elapsed % 60).toString().padStart(2, '0');
@@ -151,7 +169,6 @@ function attachGlobalEventListeners() {
             }
 
             // If the view is different, or if it's the home view (to allow resetting), change the view.
-            // This ensures that clicking "Home" when already on the home screen re-renders it correctly.
             if (newView !== state.currentView || newView === 'home') {
                 state.currentView = newView;
                 renderCurrentView();
@@ -160,33 +177,37 @@ function attachGlobalEventListeners() {
     });
 
     // AI Features Toggle
-    dom.aiReadyToggle.addEventListener('click', () => {
-        state.settings.aiFeaturesEnabled = !state.settings.aiFeaturesEnabled;
-        const isEnabled = state.settings.aiFeaturesEnabled;
-        showToast(`AI Features ${isEnabled ? 'Enabled!' : 'Disabled.'}`, isEnabled ? 'success' : 'info');
-        updateAiReadyToggleUI();
-        saveState();
-    });
+    if (dom.aiReadyToggle) {
+        dom.aiReadyToggle.addEventListener('click', () => {
+            state.settings.aiFeaturesEnabled = !state.settings.aiFeaturesEnabled;
+            const isEnabled = state.settings.aiFeaturesEnabled;
+            showToast(`AI Features ${isEnabled ? 'Enabled!' : 'Disabled.'}`, isEnabled ? 'success' : 'info');
+            updateAiReadyToggleUI();
+            saveState();
+        });
+    }
 
     // Audio Player Events
     dom.audioPlayer.addEventListener('play', () => {
         state.isPlaying = true;
-        updatePlayPauseIcon();
-        updatePlayingTrackUI();
+        if (typeof updatePlayPauseIcon === 'function') updatePlayPauseIcon();
+        if (typeof updatePlayingTrackUI === 'function') updatePlayingTrackUI();
         if (state.currentView === 'player' && state.settings.musicVisualizer && !state.animationFrameId) {
-            drawVisualizer();
+            if (typeof drawVisualizer === 'function') drawVisualizer();
         }
     });
     dom.audioPlayer.addEventListener('pause', () => {
         state.isPlaying = false;
-        updatePlayPauseIcon();
-        updatePlayingTrackUI();
+        if (typeof updatePlayPauseIcon === 'function') updatePlayPauseIcon();
+        if (typeof updatePlayingTrackUI === 'function') updatePlayingTrackUI();
         if(state.animationFrameId) {
             cancelAnimationFrame(state.animationFrameId);
             state.animationFrameId = null;
         }
     });
-    dom.audioPlayer.addEventListener('ended', playNext);
+    dom.audioPlayer.addEventListener('ended', () => {
+        if (typeof playNext === 'function') playNext();
+    });
     dom.audioPlayer.addEventListener('timeupdate', () => {
         if (!dynamicDom.progressBar || isNaN(dom.audioPlayer.currentTime)) return;
         dynamicDom.progressBar.value = dom.audioPlayer.currentTime;
@@ -199,17 +220,23 @@ function attachGlobalEventListeners() {
     });
 
     // Top Bar Now Playing Controls
-    dom.nowPlayingPlayPauseBtn.addEventListener('click', () => {
-        if(dom.audioPlayer.src) {
-            dom.audioPlayer.paused ? dom.audioPlayer.play() : dom.audioPlayer.pause();
-        }
-    });
-    document.getElementById('now-playing-info').addEventListener('click', () => {
-        if (state.currentView !== 'player' && (state.currentIndex > -1 || dom.audioPlayer.src)) {
-            state.currentView = 'player';
-            renderCurrentView();
-        }
-    });
+    if (dom.nowPlayingPlayPauseBtn) {
+        dom.nowPlayingPlayPauseBtn.addEventListener('click', () => {
+            if(dom.audioPlayer.src) {
+                dom.audioPlayer.paused ? dom.audioPlayer.play() : dom.audioPlayer.pause();
+            }
+        });
+    }
+
+    const nowPlayingInfo = document.getElementById('now-playing-info');
+    if (nowPlayingInfo) {
+        nowPlayingInfo.addEventListener('click', () => {
+            if (state.currentView !== 'player' && (state.currentIndex > -1 || dom.audioPlayer.src)) {
+                state.currentView = 'player';
+                renderCurrentView();
+            }
+        });
+    }
 
     // Drag and Drop file handling
     const container = dom.auraScreenContainer;
@@ -239,11 +266,10 @@ function handleFiles(files) {
             artist: 'Local File',
             id: `local-${f.name}-${f.lastModified}` 
         })));
-        // FIX: Ensure the view is set to the main library to show newly added songs.
         state.currentTracklistSource = { type: 'library', name: 'Library' };
-        renderTrackList(); // This will now always render the full library after adding.
+        if (typeof renderTrackList === 'function') renderTrackList(); 
         saveState();
-        showToast(`${newFiles.length} new song(s) added!`, 'success');
+        if (typeof showToast === 'function') showToast(`${newFiles.length} new song(s) added!`, 'success');
     }
 }
 
@@ -270,7 +296,7 @@ function saveState() {
         }
     } catch (error) {
         console.error("Failed to save state:", error);
-        showToast("Could not save settings.", "error");
+        if (typeof showToast === 'function') showToast("Could not save settings.", "error");
     }
 }
 
@@ -307,7 +333,7 @@ function addToRecents(trackName) {
     state.recents.unshift(trackName);
     if (state.recents.length > 20) state.recents.pop();
     saveState();
-    renderRecents();
+    if (typeof renderRecents === 'function') renderRecents();
 }
 
 // --- UI HELPER FUNCTIONS ---
