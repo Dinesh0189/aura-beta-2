@@ -204,6 +204,7 @@ function getTemplateForView(view) {
         player: `
             <div class="player-view-wrapper">
                 <div class="player-main">
+                    <!-- Ensure visualizer-canvas is always present (Issue 11) -->
                     <canvas id="visualizer-canvas" width="280" height="280"></canvas>
                     <div class="player-track-info">
                         <div class="title">No song selected</div>
@@ -211,6 +212,7 @@ function getTemplateForView(view) {
                     </div>
                     <div class="player-controls-backdrop">
                         <div class="player-ai-actions">
+                            <!-- Ensure AI buttons are always present (Issue 11) -->
                             <button id="ai-lyrics-btn" title="Get Lyrics"><i class="fas fa-microphone-alt"></i> Lyrics</button>
                             <button id="ai-insights-btn" title="Get Song Insights"><i class="fas fa-lightbulb"></i> Insights</button>
                         </div>
@@ -221,7 +223,6 @@ function getTemplateForView(view) {
                                 <span id="total-duration">0:00</span>
                             </div>
                             <div class="main-controls">
-                                <!-- PLAYER CONTROLS (copy into your player template) -->
                                 <div class="player-controls">
                                   <button class="btn btn-icon btn-ghost" id="shuffle-btn" aria-pressed="false" aria-label="Shuffle" title="Shuffle">
                                     <span class="icon-wrap"><i class="fas fa-random" aria-hidden="true"></i></span>
@@ -258,6 +259,7 @@ function getTemplateForView(view) {
                                 </div>
                                 <div class="eq-container">
                                     <button id="eq-btn" title="Equalizer"><i class="fas fa-sliders"></i></button>
+                                    <!-- Ensure eq-panel is always present (Issue 11) -->
                                     <div class="eq-panel" id="eq-panel">
                                         <div class="eq-sliders-container">
                                             <div class="eq-slider-wrapper">
@@ -284,6 +286,7 @@ function getTemplateForView(view) {
                 </div>
                 <div class="player-queue-container">
                     <h3>Up Next</h3>
+                    <!-- Ensure player-queue-list is always present (Issue 11) -->
                     <ul id="player-queue-list"></ul>
                 </div>
             </div>`
@@ -365,25 +368,39 @@ async function renderCurrentView() {
 function initHomeView() {
     dynamicDom.trackList = document.getElementById('track-list');
     dynamicDom.viewTitle = document.getElementById('view-title');
-    document.getElementById('add-music-btn').addEventListener('click', () => document.getElementById('file-input').click());
-    document.getElementById('file-input').addEventListener('change', e => handleFiles(e.target.files));
-    document.getElementById('ai-playlist-btn').addEventListener('click', () => openCreatePlaylistModal(true));
+    
+    const addMusicBtn = document.getElementById('add-music-btn');
+    const fileInput = document.getElementById('file-input');
+    if (addMusicBtn && fileInput) { // Defensive Check (Issue 5)
+        addMusicBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', e => handleFiles(e.target.files));
+    }
+    
+    const aiPlaylistBtn = document.getElementById('ai-playlist-btn');
+    if (aiPlaylistBtn) { // Defensive Check (Issue 5)
+        aiPlaylistBtn.addEventListener('click', () => openCreatePlaylistModal(true));
+    }
+
     const searchBtn = document.getElementById('search-btn');
-    if (searchBtn) {
+    const searchInput = document.getElementById('search-input');
+    if (searchBtn) { // Defensive Check (Issue 5)
         searchBtn.addEventListener('click', (e) => {
             e.currentTarget.parentElement.classList.toggle('active');
-            document.getElementById('search-input').focus();
+            if(searchInput) searchInput.focus();
         });
     }
-    const searchInput = document.getElementById('search-input');
+    
     if(searchInput) searchInput.addEventListener('input', renderTrackList);
     
     if(dynamicDom.trackList) dynamicDom.trackList.addEventListener('click', handleTrackListClick);
     
-    document.getElementById('liked-songs-card').addEventListener('click', () => {
-        state.currentTracklistSource = { type: 'playlist', name: 'Liked Songs' };
-        renderTrackList();
-    });
+    const likedSongsCard = document.getElementById('liked-songs-card');
+    if (likedSongsCard) { // Defensive Check (Issue 5)
+        likedSongsCard.addEventListener('click', () => {
+            state.currentTracklistSource = { type: 'playlist', name: 'Liked Songs' };
+            renderTrackList();
+        });
+    }
     
     if(dynamicDom.viewTitle) dynamicDom.viewTitle.addEventListener('click', () => {
         if (state.currentTracklistSource.type !== 'library') {
@@ -392,7 +409,10 @@ function initHomeView() {
         }
     });
 
-    document.getElementById('create-playlist-card').addEventListener('click', () => openCreatePlaylistModal(false));
+    const createPlaylistCard = document.getElementById('create-playlist-card');
+    if (createPlaylistCard) { // Defensive Check (Issue 5)
+        createPlaylistCard.addEventListener('click', () => openCreatePlaylistModal(false));
+    }
 
     renderTrackList();
 }
@@ -409,12 +429,12 @@ function initControlsView() {
 
     Object.entries(toggles).forEach(([id, key]) => {
         const toggle = document.getElementById(id);
-        if (toggle) {
+        if (toggle) { // Defensive Check (Issue 5)
             toggle.checked = state.settings[key];
             toggle.addEventListener('change', (e) => {
                 state.settings[key] = e.target.checked;
                 if (key === 'titleGlow') {
-                    dom.appTitle.classList.toggle('title-glow', state.settings.titleGlow);
+                    if (dom.appTitle) dom.appTitle.classList.toggle('title-glow', state.settings.titleGlow);
                 }
                 if (key === 'visualEffects') {
                     applyPerformanceMode();
@@ -438,6 +458,21 @@ function initAiAssistantView() {
     const sendBtn = document.getElementById('ai-chat-send-btn');
     const chatBox = document.getElementById('chat-messages');
 
+    if (!chatInput || !sendBtn || !chatBox) return; // Defensive check (Issue 5)
+    
+    if (!state.settings.aiFeaturesEnabled) { // AI Feature UX guard (Issue 7)
+        chatBox.innerHTML += `
+            <div class="chat-message assistant">
+                <div class="avatar"><i class="fas fa-robot"></i></div>
+                <div class="content">
+                   ⚠️ AI features are disabled. Please enable them by clicking "AI Ready" on the main sidebar, or enable them in **Controls & Settings**.
+                </div>
+            </div>`;
+        chatInput.disabled = true;
+        sendBtn.disabled = true;
+        return;
+    }
+
     const sendMessage = async () => {
         const message = chatInput.value.trim();
         if (!message) return;
@@ -445,7 +480,7 @@ function initAiAssistantView() {
         // Add user message to UI
         const userMsgEl = document.createElement('div');
         userMsgEl.className = 'chat-message user';
-        userMsgEl.innerHTML = `<div class="content">${message}</div>`; // No avatar for user
+        userMsgEl.innerHTML = `<div class="content">${message}</div>`;
         chatBox.appendChild(userMsgEl);
 
         chatInput.value = '';
@@ -471,8 +506,8 @@ function initAiAssistantView() {
         botMsgEl.className = 'chat-message assistant';
         
         let responseContent;
-        if (response === null) { // AI features are disabled
-            responseContent = '⚠️ AI features are currently turned off. Click "AI Ready" to enable.';
+        if (response === null) { 
+            responseContent = '⚠️ AI features encountered an error or are globally disabled. Check your console.';
         } else {
             responseContent = response;
         }
@@ -499,93 +534,115 @@ function initAccountView() {
     const profilePicUpload = document.getElementById('profile-pic-upload');
     const editPicBtn = document.querySelector('.edit-pic-btn');
     const saveProfileBtn = document.getElementById('save-profile-btn');
+    const connectBtn = document.getElementById('gdrive-connect-btn');
+    const syncBtn = document.getElementById('gdrive-sync-btn');
+
+    // Defensive check for core elements (Issue 5)
+    if (!nameInput || !profilePicImg || !connectBtn) return;
+
 
     if (state.googleDriveSignedIn) {
         nameInput.value = state.googleUserName || 'Google User';
-        emailInput.value = state.googleUserEmail || 'No email provided';
+        if (emailInput) emailInput.value = state.googleUserEmail || 'No email provided';
         profilePicImg.src = state.googleUserPicture || 'https://placehold.co/100x100/2a2a3a/e0e0e0?text=G';
         
         nameInput.readOnly = true;
-        emailInput.style.display = 'block';
-        editPicBtn.style.display = 'none';
-        saveProfileBtn.style.display = 'none';
+        if (emailInput) emailInput.style.display = 'block';
+        if (editPicBtn) editPicBtn.style.display = 'none';
+        if (saveProfileBtn) saveProfileBtn.style.display = 'none';
     } else {
         nameInput.value = state.userName;
         profilePicImg.src = state.userProfilePic || 'https://placehold.co/100x100/2a2a3a/e0e0e0?text=A';
 
         nameInput.readOnly = false;
-        emailInput.style.display = 'none';
-        editPicBtn.style.display = 'flex';
-        saveProfileBtn.style.display = 'block';
+        if (emailInput) emailInput.style.display = 'none';
+        if (editPicBtn) editPicBtn.style.display = 'flex';
+        if (saveProfileBtn) saveProfileBtn.style.display = 'block';
     }
     
-    saveProfileBtn.addEventListener('click', () => {
-        state.userName = nameInput.value.trim();
-        saveState();
-        showToast('Profile saved!', 'success');
-    });
+    if (saveProfileBtn) {
+        saveProfileBtn.addEventListener('click', () => {
+            state.userName = nameInput.value.trim();
+            saveState();
+            showToast('Profile saved!', 'success');
+        });
+    }
 
-    profilePicUpload.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                state.userProfilePic = event.target.result;
-                profilePicImg.src = state.userProfilePic;
-                saveState();
-            };
-            reader.readAsDataURL(file);
-        }
-    });
+    if (profilePicUpload) {
+        profilePicUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    state.userProfilePic = event.target.result;
+                    profilePicImg.src = state.userProfilePic;
+                    saveState();
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    }
 
-    const connectBtn = document.getElementById('gdrive-connect-btn');
     connectBtn.addEventListener('click', () => {
         if (state.googleDriveSignedIn) {
-            handleSignoutClick();
+            if (typeof handleSignoutClick === 'function') handleSignoutClick();
         } else {
-            handleAuthClick();
+            if (typeof handleAuthClick === 'function') handleAuthClick();
         }
     });
 
-    document.getElementById('gdrive-sync-btn').addEventListener('click', syncDriveFiles);
+    if (syncBtn) {
+        syncBtn.addEventListener('click', () => {
+             if (typeof syncDriveFiles === 'function') syncDriveFiles();
+        });
+    }
     updateDriveStatus(state.googleDriveSignedIn);
 }
 
 function initYtToMp3View() {
-    document.getElementById('yt-load-btn').addEventListener('click', handleYtLoad);
-    document.getElementById('yt-add-to-library-btn').addEventListener('click', handleYtAddToLibrary);
-    document.getElementById('yt-download-btn').addEventListener('click', handleYtDownload);
+    const loadBtn = document.getElementById('yt-load-btn');
+    const addToLibraryBtn = document.getElementById('yt-add-to-library-btn');
+    const downloadBtn = document.getElementById('yt-download-btn');
+    const searchBtn = document.getElementById('yt-search-api-btn');
+    const searchInput = document.getElementById('yt-search-input');
+    const tabs = document.querySelectorAll('.yt-tab-btn');
+
+    if (loadBtn) loadBtn.addEventListener('click', handleYtLoad);
+    if (addToLibraryBtn) addToLibraryBtn.addEventListener('click', handleYtAddToLibrary);
+    if (downloadBtn) downloadBtn.addEventListener('click', handleYtDownload);
     
     // NEW: Search API listeners
-    const searchBtn = document.getElementById('yt-search-api-btn');
     if (searchBtn) searchBtn.addEventListener('click', handleYtSearchApi);
-    const searchInput = document.getElementById('yt-search-input');
     if (searchInput) searchInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') handleYtSearchApi();
     });
 
     // NEW: Tab switching logic
-    document.querySelectorAll('.yt-tab-btn').forEach(btn => {
+    tabs.forEach(btn => {
         btn.addEventListener('click', (e) => {
-            document.querySelectorAll('.yt-tab-btn').forEach(b => b.classList.remove('active'));
+            tabs.forEach(b => b.classList.remove('active'));
             
             const targetTab = e.target.dataset.tab;
             
             // Toggle visibility of the content containers
-            document.getElementById('yt-link-tab').style.display = (targetTab === 'link' ? 'flex' : 'none');
-            document.getElementById('yt-search-tab').style.display = (targetTab === 'search' ? 'flex' : 'none');
+            const linkTab = document.getElementById('yt-link-tab');
+            const searchTab = document.getElementById('yt-search-tab');
+
+            if (linkTab) linkTab.style.display = (targetTab === 'link' ? 'flex' : 'none');
+            if (searchTab) searchTab.style.display = (targetTab === 'search' ? 'flex' : 'none');
 
             e.target.classList.add('active');
         });
     });
     // Initialize tab display state
-    document.getElementById('yt-search-tab').style.display = 'none';
+    const searchTab = document.getElementById('yt-search-tab');
+    if (searchTab) searchTab.style.display = 'none';
 
     renderYtHistory();
 }
 
 async function handleYtSearchApi() {
-    const query = document.getElementById('yt-search-input').value.trim();
+    const query = document.getElementById('yt-search-input')?.value.trim();
     const resultsList = document.getElementById('yt-search-results');
 
     if (!query) {
@@ -593,12 +650,20 @@ async function handleYtSearchApi() {
         return;
     }
 
-    if (!state.googleApiReady) {
-        showToast("Google API is not ready. Please wait or connect account.", "error");
+    // AI/API Check (Issue 7 UX fix)
+    if (!state.settings.aiFeaturesEnabled) { 
+        showToast("AI features are disabled. Enable them to use YouTube search API.", "error");
+        if (resultsList) resultsList.innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Search failed. AI features disabled.</p></div>`;
         return;
     }
 
-    resultsList.innerHTML = `<div class="loading-spinner" style="margin: 2rem auto;"></div>`;
+    if (!state.googleApiReady) {
+        showToast("Google API is not ready. Please wait or connect account.", "error");
+        if (resultsList) resultsList.innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Search failed. Google API not ready.</p></div>`;
+        return;
+    }
+
+    if (resultsList) resultsList.innerHTML = `<div class="loading-spinner" style="margin: 2rem auto;"></div>`;
 
     try {
         // Use gapi.client.youtube.search.list with the user's API key (loaded in backend.js)
@@ -607,13 +672,13 @@ async function handleYtSearchApi() {
             'params': {
                 'part': 'snippet',
                 'q': query,
-                'type': 'video', // Limit to videos for music app
-                'maxResults': 15, // Keep search results concise
+                'type': 'video', 
+                'maxResults': 15, 
             }
         });
 
         if (response.result.items.length === 0) {
-            resultsList.innerHTML = `<div class="empty-state"><i class="fas fa-compact-disc"></i><p>No YouTube videos found for "${query}".</p></div>`;
+            if (resultsList) resultsList.innerHTML = `<div class="empty-state"><i class="fas fa-compact-disc"></i><p>No YouTube videos found for "${query}".</p></div>`;
             return;
         }
 
@@ -622,14 +687,14 @@ async function handleYtSearchApi() {
     } catch (err) {
         console.error("YouTube Search API Error:", err);
         showToast(`Youtube failed: ${err.result?.error?.message || 'Check your API Key and Console setup.'}`, "error");
-        resultsList.innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Search failed. Check API key restrictions or network.</p></div>`;
+        if (resultsList) resultsList.innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Search failed. Check API key restrictions or network.</p></div>`;
     }
 }
 
 function renderYtSearchResults(items) {
     const resultsList = document.getElementById('yt-search-results');
-    
-    // Filter out items that might not have videoId (e.g. if type='channel' was allowed)
+    if (!resultsList) return;
+
     const videoItems = items.filter(item => item.id && item.id.videoId);
     
     if (videoItems.length === 0) {
@@ -664,12 +729,15 @@ function renderYtSearchResults(items) {
             const url = `https://www.youtube.com/watch?v=${videoId}`;
             
             // Switch back to link tab and load the video
-            document.querySelector('.yt-tab-btn[data-tab="link"]').click();
-            document.getElementById('yt-url-input').value = url;
+            document.querySelector('.yt-tab-btn[data-tab="link"]')?.click();
+            const urlInput = document.getElementById('yt-url-input');
+            if (urlInput) urlInput.value = url;
             
             // Ensure link tab is visible (flex) and search tab is hidden
-            document.getElementById('yt-link-tab').style.display = 'flex';
-            document.getElementById('yt-search-tab').style.display = 'none';
+            const linkTab = document.getElementById('yt-link-tab');
+            const searchTab = document.getElementById('yt-search-tab');
+            if (linkTab) linkTab.style.display = 'flex';
+            if (searchTab) searchTab.style.display = 'none';
 
             handleYtLoad();
         });
@@ -693,22 +761,22 @@ async function handleYtDownload() {
         const format = ytdl.chooseFormat(info.formats, { quality: 'highestaudio', filter: 'audioonly' });
 
         if (!format || !format.url) {
-            throw new Error("No suitable audio format found for download.");
+            // FIX: Improved error message for ytdl (Issue 9)
+            throw new Error("No suitable audio format found for download. This may be due to browser security restrictions (CORS).");
         }
 
-        // Use an anchor tag to trigger the download. This is more reliable than fetch for cross-origin resources.
+        // Use an anchor tag to trigger the download. 
         const a = document.createElement('a');
         a.href = format.url;
         
         const cleanTitle = info.videoDetails.title.replace(/[\\/:"*?<>|]/g, '');
-        // The container is often 'mp4' (m4a), but we name it .mp3 as requested.
         a.download = `${cleanTitle}.mp3`; 
         
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         
-        showToast('Download started!', 'success');
+        showToast('Download started! Check your browser status.', 'success');
 
     } catch (err) {
         console.error("YouTube Download Error:", err);
@@ -736,7 +804,8 @@ function getYtVideoId(url) {
 }
 
 function handleYtLoad() {
-    const url = document.getElementById('yt-url-input').value;
+    const urlInput = document.getElementById('yt-url-input');
+    const url = urlInput ? urlInput.value : '';
     const videoId = getYtVideoId(url);
 
     if (!videoId) {
@@ -745,7 +814,8 @@ function handleYtLoad() {
     }
     
     state.currentYtInfo.id = videoId;
-    document.getElementById('yt-placeholder').style.display = 'none';
+    const placeholder = document.getElementById('yt-placeholder');
+    if (placeholder) placeholder.style.display = 'none';
     
     if (state.ytPlayer && typeof state.ytPlayer.loadVideoById === 'function') {
         state.ytPlayer.loadVideoById(videoId);
@@ -793,6 +863,12 @@ function createYtPlayer(videoId) {
         state.ytPlayer.destroy();
     }
 
+    const playerContainer = document.getElementById('yt-player-container');
+    if (!playerContainer) { // Defensive Check (Issue 11)
+        console.error("YouTube player container not found.");
+        return;
+    }
+
     state.ytPlayer = new YT.Player('yt-player-container', {
         height: '100%',
         width: '100%',
@@ -806,9 +882,14 @@ function onYtPlayerReady(event) {
     const playerData = event.target.getVideoData();
     state.currentYtInfo.title = playerData.title;
     state.currentYtInfo.author = playerData.author;
-    document.getElementById('yt-video-title').textContent = playerData.title;
-    document.getElementById('yt-video-author').textContent = playerData.author;
-    document.getElementById('yt-info-and-controls').style.display = 'flex';
+    
+    const titleEl = document.getElementById('yt-video-title');
+    const authorEl = document.getElementById('yt-video-author');
+    const controlsEl = document.getElementById('yt-info-and-controls');
+    
+    if (titleEl) titleEl.textContent = playerData.title;
+    if (authorEl) authorEl.textContent = playerData.author;
+    if (controlsEl) controlsEl.style.display = 'flex';
 
     const historyEntry = {
         id: playerData.video_id,
@@ -845,12 +926,14 @@ function renderYtHistory() {
     historyList.querySelectorAll('.yt-history-item').forEach(item => {
         item.addEventListener('click', () => {
             const url = `https://www.youtube.com/watch?v=${item.dataset.id}`;
-            document.getElementById('yt-url-input').value = url;
+            const urlInput = document.getElementById('yt-url-input');
+            if (urlInput) urlInput.value = url;
             
             // Ensure link tab is visible (flex) and search tab is hidden when loading from history
-            document.querySelector('.yt-tab-btn[data-tab="link"]').click();
-            document.getElementById('yt-link-tab').style.display = 'flex';
+            document.querySelector('.yt-tab-btn[data-tab="link"]')?.click();
+            const linkTab = document.getElementById('yt-link-tab');
             const searchTab = document.getElementById('yt-search-tab');
+            if (linkTab) linkTab.style.display = 'flex';
             if (searchTab) searchTab.style.display = 'none';
 
             handleYtLoad();
@@ -860,14 +943,17 @@ function renderYtHistory() {
 
 // --- JAMENDO VIEW FUNCTIONS (NEW) ---
 function initJamendoView() {
-    document.getElementById('jamendo-search-btn').addEventListener('click', handleJamendoSearch);
-    document.getElementById('jamendo-search-input').addEventListener('keydown', (e) => {
+    const searchBtn = document.getElementById('jamendo-search-btn');
+    const searchInput = document.getElementById('jamendo-search-input');
+    
+    if (searchBtn) searchBtn.addEventListener('click', handleJamendoSearch);
+    if (searchInput) searchInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') handleJamendoSearch();
     });
 }
 
 async function handleJamendoSearch() {
-    const query = document.getElementById('jamendo-search-input').value.trim();
+    const query = document.getElementById('jamendo-search-input')?.value.trim();
     if (!query) {
         showToast("Please enter a search term.", "info");
         return;
@@ -879,7 +965,7 @@ async function handleJamendoSearch() {
     }
 
     const resultsList = document.getElementById('jamendo-results-list');
-    resultsList.innerHTML = `<div class="loading-spinner" style="margin: 3rem auto;"></div>`;
+    if (resultsList) resultsList.innerHTML = `<div class="loading-spinner" style="margin: 3rem auto;"></div>`;
 
     try {
         const url = `https://api.jamendo.com/v3.0/tracks/?client_id=${state.jamendoClientId}&format=json&search=${encodeURIComponent(query)}&limit=50&imagesize=60`;
@@ -890,7 +976,7 @@ async function handleJamendoSearch() {
         const data = await response.json();
 
         if (data.headers.status !== 'success' || data.results.length === 0) {
-            resultsList.innerHTML = `<div class="empty-state"><i class="fas fa-compact-disc"></i><p>No results found for "${query}".</p></div>`;
+            if (resultsList) resultsList.innerHTML = `<div class="empty-state"><i class="fas fa-compact-disc"></i><p>No results found for "${query}".</p></div>`;
             return;
         }
 
@@ -899,12 +985,13 @@ async function handleJamendoSearch() {
     } catch (error) {
         console.error("Jamendo search failed:", error);
         showToast(`Search failed: ${error.message}`, "error");
-        resultsList.innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Could not fetch data from Jamendo.</p></div>`;
+        if (resultsList) resultsList.innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Could not fetch data from Jamendo.</p></div>`;
     }
 }
 
 function renderJamendoResults(tracks) {
     const resultsList = document.getElementById('jamendo-results-list');
+    if (!resultsList) return;
     resultsList.innerHTML = tracks.map(track => `
         <li class="jamendo-track-item" data-track-id="${track.id}">
             <img src="${track.image}" alt="${track.name}">
@@ -945,8 +1032,8 @@ function renderJamendoResults(tracks) {
             }
             
             // Set queue and play
-            setQueue(state.library, targetIndex);
-            playTrack();
+            if (typeof setQueue === 'function') setQueue(state.library, targetIndex);
+            if (typeof playTrack === 'function') playTrack();
         });
     });
 }
@@ -959,34 +1046,35 @@ function initThemeView() {
         'aura-default': { name: 'Aura Default', colors: ['#12121c', '#00c6ff', '#0072ff', '#e0e0e0'] },
         'theme-neon-nights': { name: 'Neon Nights', colors: ['#0d0221', '#f900f9', '#00f5ff', '#ffffff'] },
         'theme-forest-calm': { name: 'Forest Calm', colors: ['#141d1a', '#2dc46b', '#ffc857', '#f0f5f1'] },
-        // Add the new themes so they appear in the customizer
         'theme-solar-warm': { name: 'Solar Warm', colors: ['#14120f', '#FF7A18', '#FFD166', '#fff'] },
         'theme-midnight-rose': { name: 'Midnight Rose', colors: ['#0b0611', '#ff4d9a', '#6f42c1', '#fff'] },
         'theme-ocean-deep': { name: 'Ocean Deep', colors: ['#071325', '#00d2ff', '#0077ff', '#e6f7ff'] },
     };
 
-    container.innerHTML = Object.entries(themes).map(([id, {name, colors}]) => `
-        <div class="theme-card ${state.settings.activeTheme === id ? 'active' : ''}" data-theme-id="${id}">
-            <div class="theme-preview">
-                <span style="background-color: ${colors[0]}"></span>
-                <span style="background-color: ${colors[1]}"></span>
-                <span style="background-color: ${colors[2]}"></span>
-                <span style="background-color: ${colors[3]}"></span>
+    if (container) { // Defensive check (Issue 5)
+        container.innerHTML = Object.entries(themes).map(([id, {name, colors}]) => `
+            <div class="theme-card ${state.settings.activeTheme === id ? 'active' : ''}" data-theme-id="${id}">
+                <div class="theme-preview">
+                    <span style="background-color: ${colors[0]}"></span>
+                    <span style="background-color: ${colors[1]}"></span>
+                    <span style="background-color: ${colors[2]}"></span>
+                    <span style="background-color: ${colors[3]}"></span>
+                </div>
+                <h3>${name}</h3>
             </div>
-            <h3>${name}</h3>
-        </div>
-    `).join('');
+        `).join('');
 
-    container.querySelectorAll('.theme-card').forEach(card => {
-        card.addEventListener('click', () => {
-            const themeId = card.dataset.themeId;
-            applyTheme(themeId);
-            container.querySelector('.theme-card.active')?.classList.remove('active');
-            card.classList.add('active');
+        container.querySelectorAll('.theme-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const themeId = card.dataset.themeId;
+                applyTheme(themeId);
+                container.querySelector('.theme-card.active')?.classList.remove('active');
+                card.classList.add('active');
+            });
         });
-    });
+    }
 
-    // Customization Sliders
+    // Customization Sliders (Defensive check for all of them, Issue 5)
     const animSlider = document.getElementById('anim-speed-slider');
     const animValue = document.getElementById('anim-speed-value');
     const colorSlider = document.getElementById('color-intensity-slider');
@@ -994,34 +1082,38 @@ function initThemeView() {
     const blurSlider = document.getElementById('bg-blur-slider');
     const blurValue = document.getElementById('bg-blur-value');
 
-    animSlider.value = state.settings.animationSpeed;
-    animValue.textContent = `${state.settings.animationSpeed.toFixed(1)}s`;
-    colorSlider.value = state.settings.colorIntensity;
-    colorValue.textContent = `${state.settings.colorIntensity}%`;
-    blurSlider.value = state.settings.backgroundBlur;
-    blurValue.textContent = `${state.settings.backgroundBlur}px`;
-
-
-    animSlider.addEventListener('input', (e) => {
-        state.settings.animationSpeed = parseFloat(e.target.value);
+    if (animSlider && animValue) {
+        animSlider.value = state.settings.animationSpeed;
         animValue.textContent = `${state.settings.animationSpeed.toFixed(1)}s`;
-        applyThemeCustomizations();
-        saveState();
-    });
+        animSlider.addEventListener('input', (e) => {
+            state.settings.animationSpeed = parseFloat(e.target.value);
+            animValue.textContent = `${state.settings.animationSpeed.toFixed(1)}s`;
+            applyThemeCustomizations();
+            saveState();
+        });
+    }
 
-    colorSlider.addEventListener('input', (e) => {
-        state.settings.colorIntensity = parseInt(e.target.value);
+    if (colorSlider && colorValue) {
+        colorSlider.value = state.settings.colorIntensity;
         colorValue.textContent = `${state.settings.colorIntensity}%`;
-        applyThemeCustomizations();
-        saveState();
-    });
+        colorSlider.addEventListener('input', (e) => {
+            state.settings.colorIntensity = parseInt(e.target.value);
+            colorValue.textContent = `${state.settings.colorIntensity}%`;
+            applyThemeCustomizations();
+            saveState();
+        });
+    }
 
-     blurSlider.addEventListener('input', (e) => {
-        state.settings.backgroundBlur = parseInt(e.target.value);
+     if (blurSlider && blurValue) {
+        blurSlider.value = state.settings.backgroundBlur;
         blurValue.textContent = `${state.settings.backgroundBlur}px`;
-        applyThemeCustomizations();
-        saveState();
-    });
+        blurSlider.addEventListener('input', (e) => {
+            state.settings.backgroundBlur = parseInt(e.target.value);
+            blurValue.textContent = `${state.settings.backgroundBlur}px`;
+            applyThemeCustomizations();
+            saveState();
+        });
+    }
 
 
     // Background Upload
@@ -1029,15 +1121,15 @@ function initThemeView() {
     const bgInput = document.getElementById('bg-upload-input');
     const clearBtn = document.getElementById('clear-bg-btn');
 
-    uploadBtn.addEventListener('click', () => bgInput.click());
-    clearBtn.addEventListener('click', () => {
+    if (uploadBtn) uploadBtn.addEventListener('click', () => bgInput?.click());
+    if (clearBtn) clearBtn.addEventListener('click', () => {
         state.settings.customBackground = '';
         applyThemeCustomizations();
         saveState();
         showToast('Background image cleared.', 'info');
     });
 
-    bgInput.addEventListener('change', (e) => {
+    if (bgInput) bgInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (file && file.type.startsWith('image/')) {
             const reader = new FileReader();
@@ -1057,14 +1149,17 @@ function initThemeView() {
 
 function applyTheme(themeId) {
     // Update the class on the body. This will apply the base theme styles.
-    // The new themes from style-updates.css will work immediately.
-    document.body.className = themeId;
-    state.settings.activeTheme = themeId;
-    saveState();
+    if (typeof applyThemeClass === 'function') { // Defensive call to external function (Issue 5)
+        applyThemeClass(themeId);
+    } else {
+        document.body.className = themeId;
+        state.settings.activeTheme = themeId;
+        saveState();
+    }
 }
 
 function renderTrackList() {
-    if (!dynamicDom.trackList) return;
+    if (!dynamicDom.trackList || !dynamicDom.viewTitle) return;
 
     dynamicDom.viewTitle.textContent = state.currentTracklistSource.name;
     let tracksToShow;
@@ -1179,6 +1274,8 @@ function showToast(message, type = 'info') {
     // Return early for non-essential info messages if toggled off
     if (!state.settings.showMessages && type === 'info') return;
 
+    if (!dom.toastContainer) return; // Defensive check (Issue 5)
+
     const toast = document.createElement('div');
     toast.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-times-circle' : 'fa-info-circle'}"></i><span>${message}</span>`;
     toast.className = `toast ${type}`;
@@ -1195,26 +1292,21 @@ function showToast(message, type = 'info') {
 
     if (state.settings.dynamicIsland) {
         // --- New Animation Sequence ---
-        // 1. Bubble In (becomes visible as a circle)
         setTimeout(() => toast.classList.add('show'), 10);
-        // 2. Expand to full width
         setTimeout(() => toast.classList.add('expand'), 300);
-        // 3. Add glow effect
         setTimeout(() => toast.classList.add('glow'), 800);
 
         // 4. Hide sequence
         setTimeout(() => {
-            toast.classList.remove('glow'); // Stop glowing first
-            // Shrink back to bubble by removing expand class
+            toast.classList.remove('glow');
             toast.classList.remove('expand');
-            // After shrinking, trigger the final hide animation
-            setTimeout(removeToast, 500); // 500ms for it to shrink
-        }, 4000); // Total visible duration
+            setTimeout(removeToast, 500);
+        }, 4000); 
     } else {
         // --- Legacy Behavior ---
-        toast.classList.add('legacy'); // Set initial state for non-bubble
-        setTimeout(() => toast.classList.add('show'), 10); // Fade-in
-        setTimeout(removeToast, 4000); // Fade-out after duration
+        toast.classList.add('legacy'); 
+        setTimeout(() => toast.classList.add('show'), 10); 
+        setTimeout(removeToast, 4000); 
     }
 }
 
@@ -1222,13 +1314,21 @@ function showToast(message, type = 'info') {
 // --- MODAL LOGIC ---
 function openAddToPlaylistModal(track) {
     const modal = document.getElementById('add-to-playlist-modal');
-    document.getElementById('modal-track-name').textContent = track.name.replace(/\.[^/.]+$/, "");
+    if (!modal) return; // Defensive Check (Issue 11)
+
+    const modalTrackName = document.getElementById('modal-track-name');
+    if (modalTrackName) modalTrackName.textContent = track.name.replace(/\.[^/.]+$/, "");
+    
     const playlistList = document.getElementById('modal-playlist-list');
+    if (!playlistList) return; // Defensive Check (Issue 11)
+
     const playlistNames = Object.keys(state.playlists);
     playlistList.innerHTML = playlistNames.length > 0
         ? playlistNames.map(name => `<li data-playlist-name="${name}">${name}</li>`).join('')
         : `<p style="color: var(--text-secondary)">No playlists created yet.</p>`;
     
+    const cancelBtn = document.getElementById('cancel-add-to-playlist-btn');
+
     const clickHandler = (e) => {
         if (e.target.tagName === 'LI') {
             const playlistName = e.target.dataset.playlistName;
@@ -1246,11 +1346,11 @@ function openAddToPlaylistModal(track) {
     const closeHandler = () => {
         modal.classList.remove('show');
         playlistList.removeEventListener('click', clickHandler);
-        document.getElementById('cancel-add-to-playlist-btn').removeEventListener('click', closeHandler);
+        if (cancelBtn) cancelBtn.removeEventListener('click', closeHandler);
     };
 
     playlistList.addEventListener('click', clickHandler);
-    document.getElementById('cancel-add-to-playlist-btn').addEventListener('click', closeHandler, { once: true });
+    if (cancelBtn) cancelBtn.addEventListener('click', closeHandler, { once: true });
     modal.classList.add('show');
 }
 
@@ -1260,8 +1360,18 @@ function openCreatePlaylistModal(isAiMode = false) {
     const desc = document.getElementById('create-playlist-modal-desc');
     const input = document.getElementById('new-playlist-name-modal');
     const confirmBtn = document.getElementById('confirm-create-playlist-btn');
+    
+    if (!modal || !title || !desc || !input || !confirmBtn) return; // Defensive Check (Issue 11)
+
 
     state.isAiPlaylistMode = isAiMode;
+
+    // AI Feature UX guard (Issue 7)
+    if (isAiMode && !state.settings.aiFeaturesEnabled) {
+        showToast("AI Playlist creation is disabled. Enable AI features first.", "error");
+        return;
+    }
+
     if (isAiMode) {
         title.textContent = "Create Playlist with AI";
         desc.textContent = "Describe the playlist you want (e.g., 'chill lofi beats for studying' or '80s rock anthems').";
@@ -1316,12 +1426,18 @@ function openCreatePlaylistModal(isAiMode = false) {
 
 function showConfirmation(title, message, onConfirm) {
     const modal = document.getElementById('confirmation-modal');
-    document.getElementById('confirmation-title').textContent = title;
-    document.getElementById('confirmation-message').textContent = message;
-    modal.classList.add('show');
-
     const confirmBtn = document.getElementById('confirm-action-btn');
     const cancelBtn = document.getElementById('cancel-confirmation-btn');
+    
+    if (!modal || !confirmBtn || !cancelBtn) return; // Defensive Check (Issue 11)
+
+    const titleEl = document.getElementById('confirmation-title');
+    const messageEl = document.getElementById('confirmation-message');
+
+    if (titleEl) titleEl.textContent = title;
+    if (messageEl) messageEl.textContent = message;
+    
+    modal.classList.add('show');
 
     const confirmHandler = () => { onConfirm(); closeHandler(); };
     const closeHandler = () => { modal.classList.remove('show'); };
@@ -1337,15 +1453,30 @@ function closeModalById(id) {
 
 // AI Modal Functions
 function showAiContentModal(title) {
+    // AI Feature UX guard (Issue 7)
+    if (!state.settings.aiFeaturesEnabled) {
+        showToast("AI features are disabled.", "error");
+        return;
+    }
+    
     const modal = document.getElementById('ai-content-modal');
-    document.getElementById('ai-modal-title').textContent = title;
-    document.getElementById('ai-modal-content').innerHTML = `<div class="loading-spinner" style="margin: 2rem auto;"></div>`;
-    document.getElementById('cancel-ai-modal-btn').onclick = hideAiContentModal;
+    if (!modal) return; // Defensive Check (Issue 11)
+
+    const titleEl = document.getElementById('ai-modal-title');
+    const contentEl = document.getElementById('ai-modal-content');
+    const cancelBtn = document.getElementById('cancel-ai-modal-btn');
+    
+    if (titleEl) titleEl.textContent = title;
+    if (contentEl) contentEl.innerHTML = `<div class="loading-spinner" style="margin: 2rem auto;"></div>`;
+    if (cancelBtn) cancelBtn.onclick = hideAiContentModal;
+    
     modal.classList.add('show');
 }
 
 function updateAiModalContent(htmlContent) {
     const contentDiv = document.getElementById('ai-modal-content');
+    if (!contentDiv) return; // Defensive Check (Issue 11)
+
     // Convert ### headings to h3 and newlines to <br>
     let formattedContent = htmlContent
         .replace(/### (.*)/g, '<h3>$1</h3>')
@@ -1363,15 +1494,14 @@ function hideAiContentModal() {
 
 function openEqualizerModal() {
     const modal = document.getElementById('equalizer-modal');
-    if (!modal) return;
-
-    // Get modal elements
     const presetsContainer = document.getElementById('modal-eq-presets');
     const lowSlider = document.getElementById('modal-eq-low-slider');
     const midSlider = document.getElementById('modal-eq-mid-slider');
     const highSlider = document.getElementById('modal-eq-high-slider');
     const closeBtn = document.getElementById('close-eq-modal-btn');
-    
+
+    if (!modal || !presetsContainer || !lowSlider || !midSlider || !highSlider || !closeBtn) return; // Defensive Check (Issue 11)
+
     // Populate presets
     presetsContainer.innerHTML = Object.keys(EQ_PRESETS).map(key => {
         const preset = EQ_PRESETS[key];
@@ -1402,7 +1532,7 @@ function openEqualizerModal() {
     };
 
     const handleSliderInput = (slider, band) => {
-        slider.oninput = (e) => { // Use oninput to prevent creating multiple listeners
+        slider.oninput = (e) => { 
             const value = parseFloat(e.target.value);
             state.settings.customEqValues[band] = value;
             if (state.eqFilters[band] && state.audioContext) {
@@ -1445,7 +1575,12 @@ function updateDriveStatus(isSignedIn) {
             syncButtonEl.disabled = true;
             if(disconnectedMsgEl) disconnectedMsgEl.textContent = 'Connect your Google Drive to sync your music library and playlists across devices.';
         }
-        connectButtonEl.disabled = !state.googleApiReady;
-        if (!state.googleApiReady) connectButtonEl.textContent = 'Loading...';
+        // Check state.googleApiReady status for button availability
+        if (!state.googleApiReady) {
+            connectButtonEl.disabled = true;
+            connectButtonEl.textContent = 'Loading...';
+        } else {
+             connectButtonEl.disabled = false;
+        }
     }
 }
